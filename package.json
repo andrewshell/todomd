@@ -1,0 +1,15 @@
+{
+  "name": "andrewshell/pdd",
+  "version": "1.0.0",
+  "description": "CLI tool for Puzzle Driven Development",
+  "bin": {
+    "pdd": "./bin/pdd.js"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "commander": "^11.1.0",
+    "js-yaml": "^4.1.0"
+  }
+}

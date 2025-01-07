@@ -26,12 +26,11 @@ function renderTodoTree(todos, level = 0) {
   let html = '';
   
   for (const todo of todos) {
-    const status = todo.completed ? '✓' : '○';
-    html += `${indent}<div class="todo-item level-${level}">
-      <span class="status">${status}</span>
+    const status = todo.completed ? 'complete' : 'incomplete';
+    html += `${indent}<div class="todo-item level-${level} ${status}" style="margin-left: ${level}rem;">
       <span class="id">#${todo.id}</span>
-      <span class="body">${todo.body}</span>
       <span class="file">${todo.file}:${todo.line}</span>
+      <span class="body">${todo.body}</span>
     </div>\n`;
     
     if (todo.children.length > 0) {
@@ -71,27 +70,25 @@ async function serveCommand(dir) {
               padding: 0.5rem;
               border-radius: 4px;
               background: #f5f5f5;
+              white-space: nowrap;
+              overflow: hidden;
+              text-overflow: ellipsis;
             }
             .todo-item:hover {
               background: #eee;
             }
-            .status {
-              color: #666;
-              margin-right: 0.5rem;
+            .complete {
+              text-decoration: line-through;
             }
             .id {
               color: #0066cc;
-              margin-right: 1rem;
+              margin-right: 0.5rem;
             }
             .file {
               color: #666;
               font-size: 0.9em;
-              margin-left: 1rem;
+              margin-right: 0.5rem;
             }
-            .level-1 { margin-left: 2rem; }
-            .level-2 { margin-left: 4rem; }
-            .level-3 { margin-left: 6rem; }
-            .level-4 { margin-left: 8rem; }
           </style>
         </head>
         <body>

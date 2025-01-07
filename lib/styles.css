@@ -1,0 +1,89 @@
+body { 
+  font-family: Arial, sans-serif; 
+  margin: 40px; 
+}
+
+.todo { 
+  background-color: #f0f0f0;
+  margin: 10px 0; 
+  padding: 10px; 
+  border-radius: 5px;
+}
+
+.todo.completed {
+  opacity: 0.5;
+}
+
+.todo-link { 
+  text-decoration: none; 
+  display: block; 
+  width: 100%; 
+  overflow: hidden; 
+  white-space: nowrap; 
+  text-overflow: ellipsis; 
+}
+
+.todo-id { 
+  color: #666; 
+}
+
+.todo-file { 
+  color: #999; 
+  font-size: 0.9em; 
+  margin-top: 5px; 
+}
+
+.todo-path { 
+  color: #666; 
+  margin: 10px 0 20px 0; 
+}
+
+.children { 
+  margin-top: 30px; 
+}
+
+.children .todo { 
+  border-left: 2px solid #eee; 
+}
+
+.todo:not(:first-child) { 
+  border-left: 2px solid #eee; 
+} 
+
+.code-snippet {
+  background: #f8f8f8;
+  border-radius: 5px;
+  margin: 20px 0;
+  overflow-x: auto;
+}
+
+.code-snippet pre {
+  margin: 0;
+  padding: 10px 0;
+}
+
+.code-line {
+  padding: 0 10px;
+  white-space: pre;
+  font-family: monospace;
+  line-height: 1.2;
+}
+
+.code-line.highlight {
+  background: #ffe3e3;
+}
+
+.line-number {
+  color: #999;
+  padding-right: 1em;
+  user-select: none;
+  display: inline-block;
+  width: 3em;
+  text-align: right;
+  margin-right: 1em;
+  border-right: 1px solid #ddd;
+}
+
+.line-content {
+  padding-left: 0.5em;
+} 

@@ -1,109 +1,133 @@
 const express = require('express');
-const { scanCommand } = require('./scan');
+const path = require('path');
+const { loadTodos, getFileSnippet } = require('../lib/todos');
 const { loadConfig } = require('../lib/config');
-const { loadExistingTodos } = require('../lib/todos');
 
-function buildTodoTree(todos) {
-  const todoMap = new Map(todos.map(todo => [todo.id, { ...todo, children: [] }]));
-  const roots = [];
-
-  for (const todo of todoMap.values()) {
-    if (todo.parentId) {
-      const parent = todoMap.get(todo.parentId);
-      if (parent) {
-        parent.children.push(todo);
-      }
-    } else {
-      roots.push(todo);
-    }
-  }
-
-  return roots;
+function formatFile(todo) {
+  if (!todo.file) return '';
+  const line = todo.line ? `:${todo.line}` : '';
+  return `<div class="todo-file">${todo.file}${line}</div>`;
 }
 
-function renderTodoTree(todos, level = 0) {
-  const indent = '  '.repeat(level);
-  let html = '';
+function formatTodo(todo, todos, level = 0) {
+  const children = todos.filter(t => t.parentId === todo.id);
+  const completed = todo.completed ? 'completed' : '';
   
-  for (const todo of todos) {
-    const status = todo.completed ? 'complete' : 'incomplete';
-    html += `${indent}<div class="todo-item level-${level} ${status}" style="margin-left: ${level}rem;">
-      <span class="id">#${todo.id}</span>
-      <span class="file">${todo.file}:${todo.line}</span>
-      <span class="body">${todo.body}</span>
-    </div>\n`;
-    
-    if (todo.children.length > 0) {
-      html += renderTodoTree(todo.children, level + 1);
-    }
-  }
-  
-  return html;
+  return `
+    <div class="todo ${completed}" style="margin-left: ${level}rem">
+      <a href="/todo/${todo.id}" class="todo-link">
+        <span class="todo-id">#${todo.id}</span>
+        ${todo.body}
+      </a>
+      ${formatFile(todo)}
+    </div>
+    ${children.map(child => formatTodo(child, todos, level + 1)).join('')}
+  `;
 }
 
-async function serveCommand(dir) {
+async function renderTodoPage(todo, todos) {
+  const children = todos.filter(t => t.parentId === todo.id);
+  const childrenHtml = children.length ? `
+    <div class="children">
+      <h2>Child Tasks</h2>
+      ${children.map(child => formatTodo(child, todos, 0)).join('')}
+    </div>
+  ` : '';
+
+  const snippet = await getFileSnippet(todo.file, todo.line);
+  const snippetHtml = snippet ? `
+    <div class="code-snippet">
+      <pre><code>${snippet.map(line => 
+        `<div class="code-line${line.highlight ? ' highlight' : ''}">` +
+        `<span class="line-number">${line.number}</span>` +
+        `<span class="line-content">${escapeHtml(line.content)}</span>` +
+        '</div>'
+      ).join('')}</code></pre>
+    </div>
+  ` : '';
+
+  return `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <title>TODO #${todo.id}</title>
+        <link rel="stylesheet" href="/styles.css">
+      </head>
+      <body>
+        <h1><span class="todo-id">#${todo.id}</span> ${todo.body}</h1>
+        ${formatFile(todo)}
+        ${snippetHtml}
+        ${childrenHtml}
+        <p><a href="/">Back to All TODOs</a></p>
+      </body>
+    </html>
+  `;
+}
+
+// Helper function to escape HTML special characters
+function escapeHtml(unsafe) {
+  return unsafe
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+function renderHomePage(todos) {
+  const rootTodos = todos.filter(t => !t.parentId);
+  
+  return `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <title>TODOs</title>
+        <link rel="stylesheet" href="/styles.css">
+      </head>
+      <body>
+        <h1>TODOs</h1>
+        ${rootTodos.map(todo => formatTodo(todo, todos, 0)).join('')}
+      </body>
+    </html>
+  `;
+}
+
+async function serve(options) {
+  const config = await loadConfig();
+  const todos = await loadTodos(config.outputFile);
+  const app = express();
+  const port = options.port || 3000;
+
+  // Serve the CSS file
+  app.get('/styles.css', (req, res) => {
+    res.sendFile(path.join(__dirname, '../lib/styles.css'));
+  });
+
+  app.get('/', (req, res) => {
+    res.send(renderHomePage(todos));
+  });
+
+  app.get('/todo/:id', async (req, res) => {
+    const todo = todos.find(t => t.id === parseInt(req.params.id));
+    if (!todo) {
+      res.status(404).send('TODO not found');
+      return;
+    }
+    const html = await renderTodoPage(todo, todos);
+    res.send(html);
+  });
+
+  app.listen(port, () => {
+    console.log(`Server running at http://localhost:${port}`);
+  });
+}
+
+async function serveCommand(dir, options = {}) {
   try {
-    // Initial scan
-    await scanCommand(dir);
-    
-    const app = express();
-    const config = await loadConfig(dir);
-    const port = config.port || 3000;
-    
-    app.get('/', async (req, res) => {
-      const todos = await loadExistingTodos(config.outputFile);
-      const todoTree = buildTodoTree(todos);
-      
-      res.send(`
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <title>PDD Todos</title>
-          <style>
-            body {
-              font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-              margin: 2rem;
-              line-height: 1.5;
-            }
-            .todo-item {
-              margin: 0.5rem 0;
-              padding: 0.5rem;
-              border-radius: 4px;
-              background: #f5f5f5;
-              white-space: nowrap;
-              overflow: hidden;
-              text-overflow: ellipsis;
-            }
-            .todo-item:hover {
-              background: #eee;
-            }
-            .complete {
-              text-decoration: line-through;
-            }
-            .id {
-              color: #0066cc;
-              margin-right: 0.5rem;
-            }
-            .file {
-              color: #666;
-              font-size: 0.9em;
-              margin-right: 0.5rem;
-            }
-          </style>
-        </head>
-        <body>
-          <h1>PDD Todos</h1>
-          ${renderTodoTree(todoTree)}
-        </body>
-        </html>
-      `);
-    });
-    
-    app.listen(port, () => {
-      console.log(`PDD web interface running at http://localhost:${port}`);
-    });
+    await serve(options);
   } catch (error) {
     console.error('Error:', error);
+    process.exit(1);
   }
 }
 

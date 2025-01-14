@@ -1,20 +1,19 @@
 const fs = require('fs').promises;
-const { loadConfig } = require('../lib/config');
+const { loadConfig, saveConfig } = require('../lib/config');
 const { loadTodos, getNextId } = require('../lib/todos');
 const { scanDirectory } = require('../lib/scanner');
 
 async function scanCommand(dir) {
   try {
     const config = await loadConfig(dir);
-    const existingTodos = await loadTodos(config.outputFile);
-    let nextIdCounter = getNextId(existingTodos);
+    let nextIdCounter = getNextId(config.todos);
     const nextId = () => nextIdCounter++;
     
-    const scannedTodos = await scanDirectory(dir, config, existingTodos, nextId);
+    const scannedTodos = await scanDirectory(dir, config, config.todos, nextId);
 
     // Process removed todos
     const finalTodos = scannedTodos.slice();
-    for (const existingTodo of existingTodos) {
+    for (const existingTodo of config.todos) {
       const stillExists = scannedTodos.some(t => t.id === existingTodo.id);
       if (!stillExists) {
         // Keep todo but mark as completed
@@ -27,8 +26,10 @@ async function scanCommand(dir) {
       }
     }
 
-    await fs.writeFile(config.outputFile, JSON.stringify(finalTodos, null, 2));
-    console.log(`Found ${finalTodos.length} TODOs. Results saved to ${config.outputFile}`);
+    config.todos = finalTodos;
+
+    await saveConfig(dir, config);
+    console.log(`Found ${finalTodos.length} TODOs.`);
   } catch (error) {
     console.error('Error:', error);
   }

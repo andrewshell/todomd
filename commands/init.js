@@ -1,23 +1,18 @@
 const fs = require('fs').promises;
 const path = require('path');
 const yaml = require('js-yaml');
-const { defaultConfig } = require('../lib/config');
+const { loadConfig, saveConfig } = require('../lib/config');
 
 async function initCommand(dir = '.') {
-  const configPath = path.join(dir, 'pdd.yml');
-
   try {
-    let existingConfig = {};
+    let config = {};
     try {
-      const configFile = await fs.readFile(configPath, 'utf8');
-      existingConfig = yaml.load(configFile);
-    } catch (err) {
+      config = await loadConfig(dir);
+    } catch (error) {
       // File doesn't exist or can't be read, use empty config
     }
-
-    const mergedConfig = { ...defaultConfig, ...existingConfig };
-    await fs.writeFile(configPath, yaml.dump(mergedConfig));
-    console.log('Config file updated at:', configPath);
+    await saveConfig(dir, config);
+    console.log('Config file updated in:', dir);
   } catch (error) {
     console.error('Error updating config file:', error);
   }

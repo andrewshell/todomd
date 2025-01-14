@@ -6,8 +6,8 @@ const { initCommand } = require('../commands/init');
 const { serveCommand } = require('../commands/serve');
 
 program
-  .name('pdd')
-  .description('Puzzle Driven Development CLI tool')
+  .name('todo')
+  .description('@TODO comments CLI tool')
   .version('1.0.0');
 
 program
@@ -18,7 +18,7 @@ program
 
 program
   .command('init')
-  .description('Initialize PDD configuration file')
+  .description('Initialize todo.md configuration file')
   .argument('[dir]', 'directory to create config in', '.')
   .action(initCommand);
 

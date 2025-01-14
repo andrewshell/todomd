@@ -1,5 +1,6 @@
 const express = require('express');
 const path = require('path');
+const { scanCommand } = require('./scan');
 const { loadTodos, getFileSnippet } = require('../lib/todos');
 const { loadConfig } = require('../lib/config');
 
@@ -92,11 +93,10 @@ function renderHomePage(todos) {
   `;
 }
 
-async function serve(options) {
-  const config = await loadConfig();
-  const todos = await loadTodos(config.outputFile);
+async function serve(dir) {
+  const { todos, ...config } = await loadConfig(dir);
   const app = express();
-  const port = options.port || 3000;
+  const port = config.port || 3000;
 
   // Serve the CSS file
   app.get('/styles.css', (req, res) => {
@@ -124,7 +124,8 @@ async function serve(options) {
 
 async function serveCommand(dir, options = {}) {
   try {
-    await serve(options);
+    await scanCommand(dir);
+    await serve(dir);
   } catch (error) {
     console.error('Error:', error);
     process.exit(1);

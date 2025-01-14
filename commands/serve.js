@@ -7,22 +7,20 @@ const { scanDirectory } = require('../lib/scanner');
 // Helper function to escape HTML special characters
 function escapeHtml(unsafe) {
   return unsafe
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#039;");
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
 }
 
 function formatSnippet(id, snippet) {
   return snippet ? `
     <div class="code-snippet" style="display:none" id="${id}">
-      <pre><code>${snippet.map(line =>
-        `<div class="code-line${line.highlight ? ' highlight' : ''}">` +
-        `<span class="line-number">${line.number}</span>` +
-        `<span class="line-content">${escapeHtml(line.content)}</span>` +
-        '</div>'
-      ).join('')}</code></pre>
+      <pre><code>${snippet.map((line) => `<div class="code-line${line.highlight ? ' highlight' : ''}">`
+        + `<span class="line-number">${line.number}</span>`
+        + `<span class="line-content">${escapeHtml(line.content)}</span>`
+        + '</div>').join('')}</code></pre>
     </div>
   ` : '';
 }
@@ -37,7 +35,7 @@ async function formatFile(todo) {
   `;
 }
 
-async function formatTodo(todo, todos) {
+async function formatTodo(todo) {
   const file = await formatFile(todo);
   return `
     <div class="todo">

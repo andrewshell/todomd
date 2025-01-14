@@ -1,69 +1,8 @@
 const express = require('express');
 const path = require('path');
-const { scanCommand } = require('./scan');
-const { loadTodos, getFileSnippet } = require('../lib/todos');
-const { loadConfig } = require('../lib/config');
-
-function formatFile(todo) {
-  if (!todo.file) return '';
-  const line = todo.line ? `:${todo.line}` : '';
-  return `<div class="todo-file">${todo.file}${line}</div>`;
-}
-
-function formatTodo(todo, todos, level = 0) {
-  const children = todos.filter(t => t.parentId === todo.id);
-  const completed = todo.completed ? 'completed' : '';
-  
-  return `
-    <div class="todo ${completed}" style="margin-left: ${level}rem">
-      <a href="/todo/${todo.id}" class="todo-link">
-        <span class="todo-id">#${todo.id}</span>
-        ${todo.body}
-      </a>
-      ${formatFile(todo)}
-    </div>
-    ${children.map(child => formatTodo(child, todos, level + 1)).join('')}
-  `;
-}
-
-async function renderTodoPage(todo, todos) {
-  const children = todos.filter(t => t.parentId === todo.id);
-  const childrenHtml = children.length ? `
-    <div class="children">
-      <h2>Child Tasks</h2>
-      ${children.map(child => formatTodo(child, todos, 0)).join('')}
-    </div>
-  ` : '';
-
-  const snippet = await getFileSnippet(todo.file, todo.line);
-  const snippetHtml = snippet ? `
-    <div class="code-snippet">
-      <pre><code>${snippet.map(line => 
-        `<div class="code-line${line.highlight ? ' highlight' : ''}">` +
-        `<span class="line-number">${line.number}</span>` +
-        `<span class="line-content">${escapeHtml(line.content)}</span>` +
-        '</div>'
-      ).join('')}</code></pre>
-    </div>
-  ` : '';
-
-  return `
-    <!DOCTYPE html>
-    <html>
-      <head>
-        <title>TODO #${todo.id}</title>
-        <link rel="stylesheet" href="/styles.css">
-      </head>
-      <body>
-        <h1><span class="todo-id">#${todo.id}</span> ${todo.body}</h1>
-        ${formatFile(todo)}
-        ${snippetHtml}
-        ${childrenHtml}
-        <p><a href="/">Back to All TODOs</a></p>
-      </body>
-    </html>
-  `;
-}
+const { getFileSnippet } = require('../lib/todos');
+const { loadConfig, saveConfig } = require('../lib/config');
+const { scanDirectory } = require('../lib/scanner');
 
 // Helper function to escape HTML special characters
 function escapeHtml(unsafe) {
@@ -75,26 +14,72 @@ function escapeHtml(unsafe) {
     .replace(/'/g, "&#039;");
 }
 
-function renderHomePage(todos) {
-  const rootTodos = todos.filter(t => !t.parentId);
-  
+function formatSnippet(id, snippet) {
+  return snippet ? `
+    <div class="code-snippet" style="display:none" id="${id}">
+      <pre><code>${snippet.map(line =>
+        `<div class="code-line${line.highlight ? ' highlight' : ''}">` +
+        `<span class="line-number">${line.number}</span>` +
+        `<span class="line-content">${escapeHtml(line.content)}</span>` +
+        '</div>'
+      ).join('')}</code></pre>
+    </div>
+  ` : '';
+}
+
+async function formatFile(todo) {
+  if (!todo.file || !todo.line) return '';
+  const id = `todo-${todo.file}:${todo.line}`.replaceAll(/[^a-z0-9]+/gi, '-');
+  const snippet = await getFileSnippet(todo.file, todo.line);
+  return `
+    <div class="todo-file" onclick="toggle('${id}')">${todo.file}${todo.line}</div>
+    ${formatSnippet(id, snippet)}
+  `;
+}
+
+async function formatTodo(todo, todos) {
+  const file = await formatFile(todo);
+  return `
+    <div class="todo">
+      ${todo.body}
+      ${file}
+    </div>
+  `;
+}
+
+async function renderHomePage(todos) {
+  const renderedTodos = await Promise.all(todos.map(formatTodo));
   return `
     <!DOCTYPE html>
     <html>
       <head>
         <title>TODOs</title>
         <link rel="stylesheet" href="/styles.css">
+        <script type="text/javascript">
+          function toggle(id) {
+            const todo = document.getElementById(id);
+            if (todo) { // Check if the element exists
+              // Toggle the display property
+              if (todo.style.display === "none" || !todo.style.display) {
+                todo.style.display = "block";
+              } else {
+                todo.style.display = "none";
+              }
+            }
+          }
+        </script>
       </head>
       <body>
         <h1>TODOs</h1>
-        ${rootTodos.map(todo => formatTodo(todo, todos, 0)).join('')}
+        ${renderedTodos.join('\n')}
       </body>
     </html>
   `;
 }
 
-async function serve(dir) {
-  const { todos, ...config } = await loadConfig(dir);
+async function serve() {
+  const config = await loadConfig();
+
   const app = express();
   const port = config.port || 3000;
 
@@ -103,17 +88,11 @@ async function serve(dir) {
     res.sendFile(path.join(__dirname, '../lib/styles.css'));
   });
 
-  app.get('/', (req, res) => {
-    res.send(renderHomePage(todos));
-  });
+  app.get('/', async (req, res) => {
+    config.todos = config.todos.concat(await scanDirectory(config));
+    saveConfig(config);
 
-  app.get('/todo/:id', async (req, res) => {
-    const todo = todos.find(t => t.id === parseInt(req.params.id));
-    if (!todo) {
-      res.status(404).send('TODO not found');
-      return;
-    }
-    const html = await renderTodoPage(todo, todos);
+    const html = await renderHomePage(config.todos);
     res.send(html);
   });
 
@@ -122,13 +101,12 @@ async function serve(dir) {
   });
 }
 
-async function serveCommand(dir, options = {}) {
+async function serveCommand(dir) {
   try {
-    await scanCommand(dir);
-    await serve(dir);
+    process.chdir(dir);
+    await serve();
   } catch (error) {
-    console.error('Error:', error);
-    process.exit(1);
+    console.error(error);
   }
 }
 
